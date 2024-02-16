@@ -1,0 +1,144 @@
+# Docker compose
+# Camundo Platform (Tomcat)
+#
+# For setup with PostgreSQL:
+#   > docker compose up -d
+#    or with MySQL:
+#   > docker compose --profile mysql up -d
+#    or
+#   > COMPOSE_PROFILES=<prof_type>[,<prof_type>] docker compose up
+#
+# Belov V.E.
+# 2024-02-16
+
+version: '3.8'
+name: camunda
+
+services:
+  bpm-platform-pgsql:
+    image: camunda/camunda-bpm-platform:latest
+    profiles: ['', "pgsql"]
+    restart: unless-stopped   # always
+    networks:
+      camunda_net:
+        aliases:
+          - bpm-platform
+    ports:
+      - 8082:8080
+      # - 8000:8000   # For debug
+      - 9404:9404
+    environment:
+      - TZ=Europe/Moscow
+      - DB_DRIVER=org.postgresql.Driver
+      - DB_URL=jdbc:postgresql://db:5432/camunda-engine
+      - DB_USERNAME=camunda
+      - DB_PASSWORD=camunda
+      - WAIT_FOR=db:5432
+      - JMX_PROMETHEUS=true
+      # - DEBUG=true
+    volumes:
+      - webapps:/camunda/webapps:rw
+      - conf:/camunda/conf:rw
+      - ./war/sample.war:/camunda/webapps/sample.war
+      - ./conf/bpm-platform.xml:/camunda/conf/bpm-platform.xml
+      - ./conf/tomcat-users.xml:/camunda/conf/tomcat-users.xml
+      - ./conf/context.xml:/camunda/webapps/manager/META-INF/context.xml
+      - ./conf/prometheus-jmx.yml:/camunda/javaagent/prometheus-jmx.yml
+    labels:
+      description: "Camonda bpm-platform server"
+
+
+  bpm-platform-mysql:
+    image: camunda/camunda-bpm-platform:latest
+    profiles: ["mysql"]
+    restart: unless-stopped   # always
+    networks:
+      camunda_net:
+        aliases:
+          - bpm-platform
+    ports:
+      - 8082:8080
+      # - 8000:8000   # For debug
+      - 9404:9404
+    environment:
+      - TZ=Europe/Moscow
+      - DB_DRIVER=com.mysql.cj.jdbc.Driver
+      - DB_URL=jdbc:mysql://db:3306/camunda-engine?sendFractionalSeconds=false
+      - DB_USERNAME=camunda
+      - DB_PASSWORD=camunda
+      # - DB_PASSWORD_FILE=/run/secrets/camunda_db_password
+      - WAIT_FOR=db:3306
+      - JMX_PROMETHEUS=true
+      # - DEBUG=true
+    volumes:
+      - webapps:/camunda/webapps:rw
+      - conf:/camunda/conf:rw
+      - ./war/sample.war:/camunda/webapps/sample.war
+      - ./conf/bpm-platform.xml:/camunda/conf/bpm-platform.xml
+      - ./conf/tomcat-users.xml:/camunda/conf/tomcat-users.xml
+      - ./conf/context.xml:/camunda/webapps/manager/META-INF/context.xml
+      - ./conf/prometheus-jmx.yml:/camunda/javaagent/prometheus-jmx.yml
+      # - $PWD/db-password.txt:/run/secrets/camunda_db_password
+    labels:
+      description: "Camonda bpm-platform server"
+
+
+  postgres-server:
+    image: postgres:15-alpine
+    profiles: ['', "pgsql"]
+    restart: unless-stopped   # always
+    networks:
+      camunda_net:
+        aliases:
+          - db
+    # ports:
+    #   - 5432:5432
+    environment:
+      - DB_SERVER_HOST=postgres-server
+      # - DB_SERVER_PORT=5432
+      # - DB_SERVER_SCHEMA=public
+      - POSTGRES_DB=camunda-engine
+      - POSTGRES_USER=camunda
+      - POSTGRES_PASSWORD=camunda
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # - ./var/lib/postgresql/data:/var/lib/postgresql/data:rw
+      - pgsql_data:/var/lib/postgresql/data:rw
+    stop_grace_period: 1m
+    labels:
+      description: "PostgreSQL server"
+
+
+  mysql-server:
+    image: mysql:8.1
+    profiles: ["mysql"]
+    restart: unless-stopped   # always
+    networks:
+      camunda_net:
+        aliases:
+          - db
+    # ports:
+    #   - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=camunda
+      - MYSQL_USER=camunda
+      - MYSQL_PASSWORD=camunda
+      - MYSQL_DATABASE=camunda-engine
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - mysql_data:/var/lib/mysql:rw
+      # - ./var/lib/mysql:/var/lib/mysql:rw
+    stop_grace_period: 1m
+    labels:
+      description: "MySQL server"
+
+networks:
+  camunda_net:
+    driver: bridge
+
+
+volumes:
+  webapps:
+  conf:
+  pgsql_data:
+  mysql_data:
